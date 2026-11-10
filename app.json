@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "MedInventory",
+    "slug": "medinventory",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.example.medinventory",
+      "permissions": ["CAMERA"]
+    },
+    "plugins": [
+      ["expo-camera", { "cameraPermission": "MedInventory uses the camera to scan medication barcodes." }],
+      "expo-sqlite",
+      "expo-sharing"
+    ]
+  }
+}
