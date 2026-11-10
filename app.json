@@ -7,12 +7,25 @@
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.example.medinventory",
-      "permissions": ["CAMERA"]
+      "permissions": [
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
-      ["expo-camera", { "cameraPermission": "MedInventory uses the camera to scan medication barcodes." }],
-      "expo-sqlite",
-      "expo-sharing"
-    ]
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "MedInventory uses the camera to scan medication barcodes."
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8d16236b-4440-4afc-9da8-1211502eb8ab"
+      }
+    }
   }
 }

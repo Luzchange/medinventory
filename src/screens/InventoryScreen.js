@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, Alert, Modal, ScrollView } from 'react-native';
 import { listMedications, updateMedication, deleteMedication } from '../db';
-import { exportAndShareCsv } from '../csv';
+import { exportInventoryBalancesCsv } from '../csv';
 import { c } from '../theme';
 
 function expiryStatus(d) {
@@ -22,26 +22,50 @@ export default function InventoryScreen({ refreshKey }) {
   useEffect(() => { load(); }, [load, refreshKey]);
 
   const doExport = async () => {
-    try { await exportAndShareCsv(); } catch (e) { Alert.alert('Export failed', e.message); }
+    try { await exportInventoryBalancesCsv(); } catch (e) { Alert.alert('Export failed', e.message); }
   };
 
-  const saveEdit = async () => { await updateMedication(edit.id, edit); setEdit(null); load(); };
-  const remove = () => Alert.alert('Delete', 'Remove this item?', [
+  const saveEdit = async () => {
+    await updateMedication(edit.id, edit);
+    setEdit(null);
+    load();
+  };
+
+  const remove = () => Alert.alert('Delete', 'Remove this medication?', [
     { text: 'Cancel' },
-    { text: 'Delete', style: 'destructive', onPress: async () => { await deleteMedication(edit.id); setEdit(null); load(); } },
+    {
+      text: 'Delete',
+      style: 'destructive',
+      onPress: async () => {
+        try {
+          await deleteMedication(edit.id);
+          setEdit(null);
+          load();
+        } catch (e) {
+          Alert.alert('Cannot Delete', e.message);
+        }
+      }
+    },
   ]);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={s.bar}>
-        <TextInput style={s.search} placeholder="Search name, NDC, lot, location" value={q} onChangeText={setQ} />
-        <TouchableOpacity style={s.export} onPress={doExport}><Text style={s.exportT}>Export CSV</Text></TouchableOpacity>
+        <TextInput
+          style={s.search}
+          placeholder="Search name, NDC, lot, location, barcode"
+          value={q}
+          onChangeText={setQ}
+        />
+        <TouchableOpacity style={s.export} onPress={doExport}>
+          <Text style={s.exportT}>Export CSV</Text>
+        </TouchableOpacity>
       </View>
       <FlatList
         data={rows}
         keyExtractor={r => String(r.id)}
         contentContainerStyle={{ padding: 12 }}
-        ListEmptyComponent={<Text style={s.empty}>No medications yet. Scan one to get started.</Text>}
+        ListEmptyComponent={<Text style={s.empty}>No medications yet. Scan or add one to get started.</Text>}
         renderItem={({ item }) => {
           const st = expiryStatus(item.expiry_date);
           return (
@@ -49,10 +73,14 @@ export default function InventoryScreen({ refreshKey }) {
               <View style={{ flex: 1 }}>
                 <Text style={s.name}>{item.brand_name || item.generic_name || item.ndc}</Text>
                 <Text style={s.sub}>{item.strength}</Text>
-                <Text style={s.sub}>NDC {item.ndc}{item.location ? ` · ${item.location}` : ''}</Text>
+                <Text style={s.sub}>NDC: {item.ndc}{item.location ? ` · Loc: ${item.location}` : ''}</Text>
+                <Text style={s.sub}>Lot: {item.lot_number || 'N/A'}</Text>
                 <Text style={{ color: st.color, marginTop: 2, fontSize: 12 }}>{st.label}</Text>
               </View>
-              <Text style={s.qty}>{item.quantity}</Text>
+              <View style={s.qtyBox}>
+                <Text style={s.qty}>{item.quantity}</Text>
+                <Text style={s.qtyUnit}>{item.stock_unit || 'tablets'}</Text>
+              </View>
             </TouchableOpacity>
           );
         }}
@@ -61,13 +89,25 @@ export default function InventoryScreen({ refreshKey }) {
         {edit && (
           <ScrollView style={{ flex: 1, padding: 16, backgroundColor: c.bg }} keyboardShouldPersistTaps="handled">
             <Text style={s.name}>{edit.brand_name || edit.generic_name || edit.ndc}</Text>
-            {[['quantity','Quantity','numeric'],['lot_number','Lot number'],['expiry_date','Expiry (YYYY-MM-DD)'],['location','Location'],['notes','Notes']].map(([k, l, kb]) => (
+            {[
+              ['quantity', 'Physical Quantity Available', 'numeric'],
+              ['stock_unit', 'Stock Unit (tablets, vials, mL, etc.)'],
+              ['lot_number', 'Lot number'],
+              ['expiry_date', 'Expiry (YYYY-MM-DD)'],
+              ['location', 'Storage Location'],
+              ['notes', 'Notes']
+            ].map(([k, l, kb]) => (
               <View key={k}>
                 <Text style={s.label}>{l}</Text>
-                <TextInput style={s.input} value={edit[k] ?? ''} keyboardType={kb || 'default'} onChangeText={v => setEdit({ ...edit, [k]: v })} />
+                <TextInput
+                  style={s.input}
+                  value={edit[k] ?? ''}
+                  keyboardType={kb || 'default'}
+                  onChangeText={v => setEdit({ ...edit, [k]: v })}
+                />
               </View>
             ))}
-            <TouchableOpacity style={s.btn} onPress={saveEdit}><Text style={s.btnT}>Save</Text></TouchableOpacity>
+            <TouchableOpacity style={s.btn} onPress={saveEdit}><Text style={s.btnT}>Save Changes</Text></TouchableOpacity>
             <TouchableOpacity style={[s.btn, { backgroundColor: c.danger }]} onPress={remove}><Text style={s.btnT}>Delete</Text></TouchableOpacity>
             <TouchableOpacity style={[s.btn, { backgroundColor: c.mute }]} onPress={() => setEdit(null)}><Text style={s.btnT}>Close</Text></TouchableOpacity>
           </ScrollView>
@@ -85,7 +125,9 @@ const s = StyleSheet.create({
   card: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.line, alignItems: 'center' },
   name: { fontSize: 16, fontWeight: '700', color: c.text },
   sub: { color: c.mute, fontSize: 12 },
-  qty: { fontSize: 24, fontWeight: '700', color: c.primary, marginLeft: 12 },
+  qtyBox: { alignItems: 'flex-end', marginLeft: 12 },
+  qty: { fontSize: 24, fontWeight: '700', color: c.primary },
+  qtyUnit: { fontSize: 11, color: c.mute, fontWeight: '600' },
   empty: { textAlign: 'center', color: c.mute, marginTop: 40 },
   label: { fontSize: 12, color: c.mute, marginTop: 12, marginBottom: 4 },
   input: { borderWidth: 1, borderColor: c.line, borderRadius: 8, padding: 10, backgroundColor: '#fff' },
